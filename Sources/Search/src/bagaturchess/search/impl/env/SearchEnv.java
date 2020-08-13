@@ -27,20 +27,17 @@ package bagaturchess.search.impl.env;
 
 import bagaturchess.bitboard.api.IBitBoard;
 import bagaturchess.bitboard.api.PawnsEvalCache;
-import bagaturchess.egtb.gaviota.cache.GTBCache_OUT;
-import bagaturchess.egtb.syzygy.SyzygyTBProbing;
 import bagaturchess.opening.api.OpeningBook;
 import bagaturchess.search.api.IEvaluator;
 import bagaturchess.search.api.IRootSearchConfig;
 import bagaturchess.search.api.ISearchConfig_AB;
 import bagaturchess.search.api.internal.ISearchMoveListFactory;
-import bagaturchess.search.impl.evalcache.IEvalCache;
+import bagaturchess.search.impl.eval.cache.IEvalCache;
 import bagaturchess.search.impl.history.HistoryTable_PieceTo;
 import bagaturchess.search.impl.history.IHistoryTable;
 import bagaturchess.search.impl.movelists.OrderingStatistics;
 import bagaturchess.search.impl.movelists.SearchMoveListFactory;
-import bagaturchess.search.impl.pv.PVHistory;
-import bagaturchess.search.impl.tpt.TPTable;
+import bagaturchess.search.impl.tpt.ITTable;
 import bagaturchess.search.impl.utils.Tactics;
 
 
@@ -55,19 +52,13 @@ public class SearchEnv {
 	
 	private IEvalCache evalCache;
 	private PawnsEvalCache pawnsCache;
-	private TPTable tpt;
-	private TPTable tpt_qs;
-	private GTBCache_OUT egtb_cache;
-	private SyzygyTBProbing gtb_probing;
-	private boolean egtb_cache_get;
-	private boolean gtb_probing_get;
+	private ITTable tpt;
 
 	
 	private IHistoryTable history_all;
 	private IHistoryTable history_incheck;
 	
 	private ISearchMoveListFactory moveListFactory;
-	private PVHistory pvs_history;
 	
 	protected OrderingStatistics orderingStatistics;
 
@@ -82,8 +73,6 @@ public class SearchEnv {
 		history_incheck = new HistoryTable_PieceTo(bitboard);
 		
 		moveListFactory = new SearchMoveListFactory();
-		
-		pvs_history = new PVHistory();
 		
 		orderingStatistics = new OrderingStatistics();
 	}
@@ -118,10 +107,6 @@ public class SearchEnv {
 		return pawnsCache;
 	}
 	
-	public PVHistory getPVs() {
-		return pvs_history;
-	}
-	
 	public int getTPTUsagePercent() {
 		if (tpt == null) {
 			return 0;
@@ -131,7 +116,7 @@ public class SearchEnv {
 	}
 	
 	
-	public TPTable getTPT() {
+	public ITTable getTPT() {
 		if (tpt == null) {
 			tpt = shared.getAndRemoveTPT();
 		}
@@ -139,7 +124,7 @@ public class SearchEnv {
 	}
 	
 	
-	public TPTable getTPTQS() {
+	public ITTable getTPTQS() {
 		/*if (tpt_qs == null) {
 			tpt_qs = shared.getAndRemoveTPTQS();
 		}
@@ -148,30 +133,6 @@ public class SearchEnv {
 			tpt = shared.getAndRemoveTPT();
 		}
 		return tpt;
-	}
-	
-	
-	public GTBCache_OUT getEGTBCache() {
-		if (!egtb_cache_get) {
-			egtb_cache = shared.getAndRemoveGTBCache_OUT();
-			egtb_cache_get = true;
-		}
-		return egtb_cache;
-	}
-	
-	
-	/**
-	 * Returns null, because the calls to GTBProbing.probe() cause jvm crashes on some hardwares as well as Java OOM errors
-	 */
-	public SyzygyTBProbing getGTBProbing() {
-		
-		if (!gtb_probing_get) {
-			gtb_probing = shared.getAndRemoveTBProbing();
-			gtb_probing_get = true;
-		}
-		
-		//return gtb_probing;
-		return null;
 	}
 	
 	
@@ -219,8 +180,6 @@ public class SearchEnv {
 		//result += shared.toString();
 		result += "Eval Cache HIT RATE is: " + getEvalCache().getHitRate();
 		result += "; Pawn Cache HIT RATE is: " + getPawnsCache().getHitRate();
-		result += "; Transposition Table HIT RATE is: " + getTPT().getHitRate();
-		result += "; Transposition Table QSearch HIT RATE is: " + getTPTQS().getHitRate();
 		result += "\r\nMOVE ORDERING STATISTICS\r\n" + getMoveListFactory().toString();
 		
 		return result;

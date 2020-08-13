@@ -32,10 +32,8 @@ import bagaturchess.search.api.internal.ISearchInfo;
 import bagaturchess.search.api.internal.ISearchMediator;
 import bagaturchess.search.api.internal.SearchInterruptedException;
 import bagaturchess.search.impl.info.SearchInfoFactory;
-import bagaturchess.search.impl.pv.PVHistoryEntry;
 import bagaturchess.search.impl.pv.PVManager;
 import bagaturchess.search.impl.pv.PVNode;
-import bagaturchess.search.impl.tpt.TPTEntry;
 import bagaturchess.search.impl.utils.DEBUGSearch;
 import bagaturchess.uci.api.ChannelManager;
 
@@ -124,13 +122,6 @@ public class NullwinSearchTask implements Runnable {
 			//Search search = new Search(searchEnv);
 			
 			//searcher = searchers.getSearcher(bitboard, sharedData);
-			
-			if (prevPV == null) {
-				PVHistoryEntry historyEntry = searcher.getEnv().getPVs().getPV(bitboard.getHashKey());
-				if (historyEntry != null) {
-					prevPV = searcher.getEnv().getPVs().getPV(searcher.getEnv().getBitboard().getHashKey()).getPv();
-				}
-			}
 			
 			/*
 			if (sharedData.getTPT() != null) {
@@ -246,7 +237,7 @@ public class NullwinSearchTask implements Runnable {
 	}
 	
 	
-	private int[] getPVfromTPT() {
+	/*private int[] getPVfromTPT() {
 		
 		List<Integer> moves = new ArrayList<Integer>();
 		
@@ -277,7 +268,7 @@ public class NullwinSearchTask implements Runnable {
 		}
 		
 		return result;
-	}
+	}*/
 	
 	
 	private int[] validatePV(int[] pv) {

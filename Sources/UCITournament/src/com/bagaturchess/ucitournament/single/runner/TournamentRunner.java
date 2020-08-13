@@ -26,8 +26,10 @@ package com.bagaturchess.ucitournament.single.runner;
 import java.util.ArrayList;
 import java.util.List;
 
+import bagaturchess.uci.api.ChannelManager;
 import bagaturchess.uci.engine.EngineProcess;
 import bagaturchess.uci.engine.EngineProcess_BagaturImpl_WorkspaceImpl;
+import bagaturchess.uci.impl.Channel_Console;
 
 import com.bagaturchess.ucitournament.framework.match.MatchRunner;
 import com.bagaturchess.ucitournament.framework.match.MatchRunner_FixedDepth;
@@ -49,6 +51,14 @@ public class TournamentRunner {
 	private static final EngineProcess bagatur_dev 			= new EngineProcess("Bagatur DEV", "C:\\DATA\\Engines\\BagaturEngine_DEV\\Bagatur_64_1_core.exe",
 															new String [0],
 															"C:\\DATA\\Engines\\BagaturEngine_DEV\\");
+
+	private static final EngineProcess bagatur_22 			= new EngineProcess("Bagatur 2.2", "C:\\DATA\\Engines\\BagaturEngine.2.2\\Bagatur_64_1_core.exe",
+															new String [0],
+															"C:\\DATA\\Engines\\BagaturEngine.2.2\\");
+	
+	private static final EngineProcess bagatur_20 			= new EngineProcess("Bagatur 2.0", "C:\\DATA\\Engines\\BagaturEngine.2.0\\Bagatur_64_1_core.exe",
+															new String [0],
+															"C:\\DATA\\Engines\\BagaturEngine.2.0\\");
 
 	private static final EngineProcess bagatur_19a 			= new EngineProcess("Bagatur 1.9a", "C:\\DATA\\Engines\\BagaturEngine.1.9a\\Bagatur_64_1_core.exe",
 															new String [0],
@@ -105,14 +115,16 @@ public class TournamentRunner {
 	public static void main(String[] args) {
 		
 		
-		EngineProcess engine1 = chess22k_1_13;
-		EngineProcess engine2 = asparuh;
+		EngineProcess engine1 = bagatur_workspace;
+		EngineProcess engine2 = bagatur_22;
 		
 		
 		EngineProcess[] engines = new EngineProcess[] {engine1, engine2};
 		
 		
 		try {
+			
+			ChannelManager.setChannel(new Channel_Console());
 			
 			engine1.start();
 			engine2.start();
@@ -123,7 +135,7 @@ public class TournamentRunner {
 			options.add("setoption name OwnBook value true");
 			options.add("setoption name Openning Mode value random intermediate");
 			options.add("setoption name Time Control Optimizations value for 1/1");
-			options.add("setoption name SyzygyPath value C:/Users/i027638/OneDrive - SAP SE/DATA/OWN/chess/EGTB/syzygy");
+			options.add("setoption name SyzygyPath value tbd");//C:/Users/i027638/OneDrive - SAP SE/DATA/OWN/chess/EGTB/syzygy
 			
 			engine1.setOptions(options);
 			engine2.setOptions(options);
@@ -137,8 +149,8 @@ public class TournamentRunner {
 			//MatchRunner matchRunner = new MatchRunner_TimeAndInc(1 * 60 * 1000, 1 * 60 * 1000, 1 * 1000, 1 * 1000);
 			//MatchRunner matchRunner = new MatchRunner_TimeAndInc(20 * 1000, 20 * 1000, 200, 200);
 			//MatchRunner matchRunner = new MatchRunner_TimeAndInc(10 * 1000, 10 * 1000, 100, 100);
-			//MatchRunner matchRunner = new MatchRunner_TimeAndInc(5 * 1000, 5 * 1000, 50, 50);
-			MatchRunner matchRunner = new MatchRunner_TimeAndInc(1 * 1000, 1 * 1000, 10, 10);
+			MatchRunner matchRunner = new MatchRunner_TimeAndInc(5 * 1000, 5 * 1000, 50, 50);
+			//MatchRunner matchRunner = new MatchRunner_TimeAndInc(1 * 1000, 1 * 1000, 10, 10);
 			
 			Tournament tournament = new Tournament(schedule, matchRunner, false);
 			

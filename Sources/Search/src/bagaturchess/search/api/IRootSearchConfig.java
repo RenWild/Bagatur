@@ -29,10 +29,6 @@ import bagaturchess.bitboard.api.IBoardConfig;
 public interface IRootSearchConfig {
 	
 	
-	public static final int TIME_CONTROL_OPTIMIZATION_TYPE_1_1		= 10;
-	public static final int TIME_CONTROL_OPTIMIZATION_TYPE_40_40 	= 20;
-	
-	
 	public IBoardConfig getBoardConfig();
 	public IEvalConfig getEvalConfig();
 	
@@ -56,11 +52,8 @@ public interface IRootSearchConfig {
 	/**
 	 * Memory Settings
 	 */
-	public int getTimeControlOptimizationType();
 	public boolean initCaches();
 	public double getTPTUsagePercent();
-	public double getTPTQSUsagePercent();
-	public double getGTBUsagePercent();
 	public double getEvalCacheUsagePercent();
 	public double getPawnsCacheUsagePercent();
 }

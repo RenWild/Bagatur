@@ -24,15 +24,12 @@ package bagaturchess.search.impl.env;
 
 
 import bagaturchess.bitboard.api.PawnsEvalCache;
-import bagaturchess.egtb.gaviota.GTBProbing;
-import bagaturchess.egtb.gaviota.cache.GTBCache_OUT;
-import bagaturchess.egtb.syzygy.SyzygyTBProbing;
 import bagaturchess.opening.api.OpeningBook;
 import bagaturchess.search.api.IEvaluatorFactory;
 import bagaturchess.search.api.IRootSearchConfig;
 import bagaturchess.search.api.ISearchConfig_AB;
-import bagaturchess.search.impl.evalcache.IEvalCache;
-import bagaturchess.search.impl.tpt.TPTable;
+import bagaturchess.search.impl.eval.cache.IEvalCache;
+import bagaturchess.search.impl.tpt.ITTable;
 import bagaturchess.uci.api.IChannel;
 
 
@@ -82,13 +79,8 @@ public class SharedData {
 	}
 	
 	
-	public TPTable getAndRemoveTPT() {
+	public ITTable getAndRemoveTPT() {
 		return memoryConsumers.getTPT().remove(0);
-	}
-	
-	
-	public TPTable getAndRemoveTPTQS() {
-		return memoryConsumers.getTPTQS().remove(0);
 	}
 	
 	
@@ -99,14 +91,6 @@ public class SharedData {
 	
 	public IEvalCache getAndRemoveEvalCache() {
 		return memoryConsumers.getEvalCache().remove(0);
-	}
-	
-	public SyzygyTBProbing getAndRemoveTBProbing() {
-		return memoryConsumers.getTBProbing().remove(0);
-	}
-	
-	public GTBCache_OUT getAndRemoveGTBCache_OUT() {
-		return memoryConsumers.getGTBCache_OUT().remove(0);
 	}
 	
 	

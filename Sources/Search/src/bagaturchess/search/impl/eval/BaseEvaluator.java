@@ -8,11 +8,13 @@ import bagaturchess.bitboard.impl.Constants;
 import bagaturchess.bitboard.impl.Fields;
 import bagaturchess.bitboard.impl.Figures;
 import bagaturchess.bitboard.impl.state.PiecesList;
+import bagaturchess.search.api.FullEvalFlag;
 import bagaturchess.search.api.IEvalConfig;
 import bagaturchess.search.api.IEvaluator;
 import bagaturchess.search.api.internal.ISearch;
-import bagaturchess.search.impl.evalcache.IEvalCache;
-import bagaturchess.search.impl.evalcache.IEvalEntry;
+import bagaturchess.search.impl.eval.cache.EvalEntry_BaseImpl;
+import bagaturchess.search.impl.eval.cache.IEvalCache;
+import bagaturchess.search.impl.eval.cache.IEvalEntry;
 
 
 public abstract class BaseEvaluator implements IEvaluator {
@@ -28,7 +30,7 @@ public abstract class BaseEvaluator implements IEvaluator {
 	private static final int CACHE_LEVEL_5 = 5;
 	private static final int CACHE_LEVEL_MAX = CACHE_LEVEL_5;
 	
-	private static double INT_MIN = 25;
+	private static double INT_MIN = 1;
 	private static double INT1 = INT_MIN;
 	private static double INT2 = INT_MIN;
 	private static double INT3 = INT_MIN;
@@ -54,7 +56,8 @@ public abstract class BaseEvaluator implements IEvaluator {
 	protected IBaseEval baseEval;
 	
 	private IEvalCache evalCache;
-		
+	private IEvalEntry cached = new EvalEntry_BaseImpl();
+	
 	
 	public BaseEvaluator(IBitBoard _bitboard, IEvalCache _evalCache, IEvalConfig _evalConfig) {
 		
@@ -101,7 +104,6 @@ public abstract class BaseEvaluator implements IEvaluator {
 	
 	public double fullEval(int depth, int alpha, int beta, int rootColour) {
 		
-		
 		if (w_pawns.getDataSize() == 0 && b_pawns.getDataSize() == 0) {
 			
 			int w_eval_nopawns_e = baseEval.getWhiteMaterialNonPawns_e();
@@ -132,23 +134,19 @@ public abstract class BaseEvaluator implements IEvaluator {
 		long hashkey = bitboard.getHashKey();
 		
 		if (USE_CACHE && evalCache != null) {
-			evalCache.lock();
-			IEvalEntry cached = evalCache.get(hashkey);
 			
-			if (cached != null) {
+			evalCache.get(hashkey, cached);
+			
+			if (!cached.isEmpty()) {
 				int level = cached.getLevel();
 				switch (level) {
 					case CACHE_LEVEL_5:
 						int eval = (int) cached.getEval();
-						evalCache.unlock();
 						return (int) returnVal(eval);
-					case CACHE_LEVEL_4:
-						break;
 					default:
 						//Do Nothing
 				}
 			}
-			evalCache.unlock();
 		}
 		
 		
@@ -161,9 +159,7 @@ public abstract class BaseEvaluator implements IEvaluator {
 		eval += phase5();
 		
 		if (USE_CACHE && evalCache != null) {
-			evalCache.lock();
 			evalCache.put(hashkey, CACHE_LEVEL_MAX, (int) eval);
-			evalCache.unlock();
 		}
 		
 		return returnVal(eval);
@@ -171,20 +167,26 @@ public abstract class BaseEvaluator implements IEvaluator {
 	
 	
 	public int lazyEval(int depth, int alpha, int beta, int rootColour) {
+		return lazyEval(depth, alpha, beta, rootColour, null);
+	}
+	
+	
+	public int lazyEval(int depth, int alpha, int beta, int rootColour, FullEvalFlag flag) {
 		
+		if (flag != null) flag.value = false;
 		
 		long hashkey = bitboard.getHashKey();
 		
 		if (USE_CACHE && evalCache != null) {
-			evalCache.lock();
-			IEvalEntry cached = evalCache.get(hashkey);
 			
-			if (cached != null) {
+			evalCache.get(hashkey, cached);
+			
+			if (!cached.isEmpty()) {
 				int level = cached.getLevel();
 				switch (level) {
 					case CACHE_LEVEL_5:
 						int eval = (int) cached.getEval();
-						evalCache.unlock();
+						if (flag != null) flag.value = true;
 						return (int) returnVal(eval);
 					case CACHE_LEVEL_4:
 						int lower = cached.getEval();
@@ -192,11 +194,9 @@ public abstract class BaseEvaluator implements IEvaluator {
 						int alpha_test = (bitboard.getColourToMove() == Figures.COLOUR_BLACK) ? -beta : alpha;
 						int beta_test = (bitboard.getColourToMove() == Figures.COLOUR_BLACK) ? -alpha : beta;
 						if (upper + INT4 <= alpha_test) {
-							evalCache.unlock();
 							return (int) returnVal(upper);
 						}
 						if (lower - INT4 >= beta_test) {
-							evalCache.unlock();
 							return (int) returnVal(lower);
 						}
 						break;
@@ -206,11 +206,9 @@ public abstract class BaseEvaluator implements IEvaluator {
 						alpha_test = (bitboard.getColourToMove() == Figures.COLOUR_BLACK) ? -beta : alpha;
 						beta_test = (bitboard.getColourToMove() == Figures.COLOUR_BLACK) ? -alpha : beta;
 						if (upper + INT3 <= alpha_test) {
-							evalCache.unlock();
 							return (int) returnVal(upper);
 						}
 						if (lower - INT3 >= beta_test) {
-							evalCache.unlock();
 							return (int) returnVal(lower);
 						}
 						break;
@@ -220,11 +218,9 @@ public abstract class BaseEvaluator implements IEvaluator {
 						alpha_test = (bitboard.getColourToMove() == Figures.COLOUR_BLACK) ? -beta : alpha;
 						beta_test = (bitboard.getColourToMove() == Figures.COLOUR_BLACK) ? -alpha : beta;
 						if (upper + INT2 <= alpha_test) {
-							evalCache.unlock();
 							return (int) returnVal(upper);
 						}
 						if (lower - INT2 >= beta_test) {
-							evalCache.unlock();
 							return (int) returnVal(lower);
 						}
 						break;
@@ -234,11 +230,9 @@ public abstract class BaseEvaluator implements IEvaluator {
 						alpha_test = (bitboard.getColourToMove() == Figures.COLOUR_BLACK) ? -beta : alpha;
 						beta_test = (bitboard.getColourToMove() == Figures.COLOUR_BLACK) ? -alpha : beta;
 						if (upper + INT1 <= alpha_test) {
-							evalCache.unlock();
 							return (int) returnVal(upper);
 						}
 						if (lower - INT1 >= beta_test) {
-							evalCache.unlock();
 							return (int) returnVal(lower);
 						}
 						break;
@@ -247,8 +241,6 @@ public abstract class BaseEvaluator implements IEvaluator {
 						throw new IllegalStateException();
 				}
 			}
-				
-			evalCache.unlock();
 		}
 		
 		
@@ -288,9 +280,7 @@ public abstract class BaseEvaluator implements IEvaluator {
 		if (eval_test + INT1 <= alpha || eval_test - INT1 >= beta) {
 			if (USE_LAZY) {
 				if (USE_CACHE && evalCache != null) {
-					evalCache.lock();
 					evalCache.put(hashkey, CACHE_LEVEL_1, (int) eval);
-					evalCache.unlock();
 				}
 				return eval_test;
 			}
@@ -303,9 +293,7 @@ public abstract class BaseEvaluator implements IEvaluator {
 		if (eval_test + INT2 <= alpha || eval_test - INT2 >= beta) {
 			if (USE_LAZY) {
 				if (USE_CACHE && evalCache != null) {
-					evalCache.lock();
 					evalCache.put(hashkey, CACHE_LEVEL_2, (int) eval);
-					evalCache.unlock();
 				}
 				return eval_test;
 			}
@@ -317,9 +305,7 @@ public abstract class BaseEvaluator implements IEvaluator {
 		if (eval_test + INT3 <= alpha || eval_test - INT3 >= beta) {
 			if (USE_LAZY) {
 				if (USE_CACHE && evalCache != null) {
-					evalCache.lock();
 					evalCache.put(hashkey, CACHE_LEVEL_3, (int) eval);
-					evalCache.unlock();
 				}
 				return eval_test;
 			}
@@ -331,9 +317,7 @@ public abstract class BaseEvaluator implements IEvaluator {
 		if (eval_test + INT4 <= alpha || eval_test - INT4 >= beta) {
 			if (USE_LAZY) {
 				if (USE_CACHE && evalCache != null) {
-					evalCache.lock();
 					evalCache.put(hashkey, CACHE_LEVEL_4, (int) eval);
-					evalCache.unlock();
 				}
 				return eval_test;
 			}
@@ -361,16 +345,16 @@ public abstract class BaseEvaluator implements IEvaluator {
 			INT4 = int4;
 		}
 			
-			
+		
 		if (eval >= ISearch.MAX_MAT_INTERVAL || eval <= -ISearch.MAX_MAT_INTERVAL) {
 			throw new IllegalStateException();
 		}
 		
 		if (USE_CACHE && evalCache != null) {
-			evalCache.lock();
 			evalCache.put(hashkey, CACHE_LEVEL_MAX, (int) eval);
-			evalCache.unlock();
 		}
+		
+		if (flag != null) flag.value = true;
 		
 		return (int) returnVal(eval);
 	}
@@ -381,21 +365,19 @@ public abstract class BaseEvaluator implements IEvaluator {
 		long hashkey = bitboard.getHashKey();
 		
 		if (USE_CACHE && evalCache != null) {
-			evalCache.lock();
-			IEvalEntry cached = evalCache.get(hashkey);
 			
-			if (cached != null) {
+			evalCache.get(hashkey, cached);
+			
+			if (!cached.isEmpty()) {
 				int level = cached.getLevel();
 				switch (level) {
 					case CACHE_LEVEL_5:
 						int eval = (int) cached.getEval();
-						evalCache.unlock();
 						return (int) returnVal(eval);
 					default:
 						//Do Nothing
 				}
 			}
-			evalCache.unlock();
 		}
 		
 		

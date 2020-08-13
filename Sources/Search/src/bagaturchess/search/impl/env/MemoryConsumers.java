@@ -9,20 +9,19 @@ import java.util.Vector;
 import bagaturchess.bitboard.api.PawnsEvalCache;
 import bagaturchess.bitboard.impl.attacks.control.metadata.SeeMetadata;
 import bagaturchess.bitboard.impl.datastructs.lrmmap.DataObjectFactory;
-import bagaturchess.bitboard.impl.datastructs.lrmmap.LRUMapLongObject;
 import bagaturchess.bitboard.impl.eval.pawns.model.PawnsModelEval;
 import bagaturchess.bitboard.impl.utils.BinarySemaphore_Dummy;
 import bagaturchess.bitboard.impl.utils.ReflectionUtils;
-import bagaturchess.egtb.gaviota.GTBProbing;
-import bagaturchess.egtb.gaviota.GTBProbing_NativeWrapper;
-import bagaturchess.egtb.gaviota.cache.GTBCache_OUT;
 import bagaturchess.egtb.syzygy.SyzygyTBProbing;
 import bagaturchess.opening.api.OpeningBook;
 import bagaturchess.opening.api.OpeningBookFactory;
 import bagaturchess.search.api.IRootSearchConfig;
-import bagaturchess.search.impl.evalcache.EvalCache;
-import bagaturchess.search.impl.evalcache.IEvalCache;
-import bagaturchess.search.impl.tpt.TPTable;
+import bagaturchess.search.impl.eval.cache.EvalCache_Impl1;
+import bagaturchess.search.impl.eval.cache.EvalCache_Impl2;
+import bagaturchess.search.impl.eval.cache.IEvalCache;
+import bagaturchess.search.impl.tpt.ITTable;
+import bagaturchess.search.impl.tpt.TTable_Impl1;
+import bagaturchess.search.impl.tpt.TTable_Impl2;
 import bagaturchess.uci.api.ChannelManager;
 import bagaturchess.uci.api.IChannel;
 
@@ -35,10 +34,9 @@ public class MemoryConsumers {
 	private static double MEMORY_USAGE_PERCENT 							= 0; 
 	
 	private static final int SIZE_MIN_ENTRIES_MULTIPLIER				= 111;
-	private static final int SIZE_MIN_ENTRIES_TPT						= (int) (25.38 * SIZE_MIN_ENTRIES_MULTIPLIER);
-	private static final int SIZE_MIN_ENTRIES_EC						= (int) (19.72 * SIZE_MIN_ENTRIES_MULTIPLIER);
+	private static final int SIZE_MIN_ENTRIES_TPT						= 8;
+	private static final int SIZE_MIN_ENTRIES_EC						= 4;
 	private static final int SIZE_MIN_ENTRIES_PEC						= 1 * SIZE_MIN_ENTRIES_MULTIPLIER;
-	private static final int SIZE_MIN_ENTRIES_GTB						= (int) (7.89 * SIZE_MIN_ENTRIES_MULTIPLIER);
 	
 	
 	public static void set_JVMDLL_MEMORY_CONSUMPTION(int val) {
@@ -72,14 +70,9 @@ public class MemoryConsumers {
 	private SeeMetadata seeMetadata;
 	private OpeningBook openingBook;
 	
-	//private IBinarySemaphoreFactory semaphoreFactory;
-	
 	private List<IEvalCache> evalCache;
 	private List<PawnsEvalCache> pawnsCache;
-	private List<TPTable> tpt;
-	private List<TPTable> tpt_qs;
-	private List<SyzygyTBProbing> gtbs;
-	private List<GTBCache_OUT> gtbCache_out;
+	private List<ITTable> tpt;
 	
 	private IChannel channel;
 	
@@ -103,11 +96,14 @@ public class MemoryConsumers {
 		 * The selection bellow is optimized for long games.
 		 */
 		
-		//0.29 for short games (e.g. 1/1), 0.69 for long games (e.g. 40/40)
-		double memoryUsagePercent = (engineConfiguration.getTimeControlOptimizationType() == IRootSearchConfig.TIME_CONTROL_OPTIMIZATION_TYPE_40_40) ? 0.69 : 0.29;
-		
-		if (MIN_MEMORY_BUFFER == 0) MIN_MEMORY_BUFFER 		= 5 * 1024 * 1024;//Set only if not set statically
-		if (MEMORY_USAGE_PERCENT == 0) MEMORY_USAGE_PERCENT = memoryUsagePercent;//Set only if not set statically
+		if (MIN_MEMORY_BUFFER == 0) {
+			MIN_MEMORY_BUFFER 		= 5 * 1024 * 1024;//Set only if not set statically
+		}
+		if (MEMORY_USAGE_PERCENT == 0) {
+			//0.29 for short games (e.g. 1/1), 0.69 for long games (e.g. 40/40)
+			double memoryUsagePercent = 0.75;//(engineConfiguration.getTimeControlOptimizationType() == IRootSearchConfig.TIME_CONTROL_OPTIMIZATION_TYPE_40_40) ? 0.69 : 0.29;
+			MEMORY_USAGE_PERCENT = memoryUsagePercent;//Set only if not set statically
+		}
 		
 		
 		//ChannelManager.getChannel().dump(new Exception());
@@ -158,18 +154,12 @@ public class MemoryConsumers {
 		
 		ChannelManager.getChannel().dump("Loading modules for Endgame Tablebases support ... ");
 		
-		gtbs			 = new Vector<SyzygyTBProbing>();
-		
-		int threadsCount = engineConfiguration.getThreadsCount();
+		//int threadsCount = engineConfiguration.getThreadsCount();
 		
 		if (SyzygyTBProbing.getSingleton() != null) {
 			
 			//SyzygyTBProbing.getSingleton().load("C:/Users/i027638/OneDrive - SAP SE/DATA/OWN/chess/EGTB/syzygy");
 			SyzygyTBProbing.getSingleton().load(engineConfiguration.getTbPath());
-			
-			for (int i=0; i<threadsCount; i++) {
-				gtbs.add(SyzygyTBProbing.getSingleton());
-			}
 			
 			//try {Thread.sleep(10000);} catch (InterruptedException e1) {}
 			ChannelManager.getChannel().dump("Modules for Endgame Tablebases OK. Will try to load Tablebases from => " + engineConfiguration.getTbPath());
@@ -178,26 +168,18 @@ public class MemoryConsumers {
 			//Can't load IA 32-bit .dll on a AMD 64-bit platform
 			//throw new IllegalStateException("egtbprobe dynamic library could not be loaded (or not found)");
 			//ChannelManager.getChannel().dump(GTBProbing_NativeWrapper.getErrorMessage());
-			
-			for (int i=0; i<threadsCount; i++) {
-				gtbs.add(null);
-			}
 		}
 		
 		
 		if (engineConfiguration.initCaches()) {
 			ChannelManager.getChannel().dump("Caches (Transposition Table, Eval Cache and Pawns Eval Cache) ...");
-			ChannelManager.getChannel().dump("Transposition Table usage percent from the free memory " + engineConfiguration.getThreadsCount() 			+ " X : " + (100 * engineConfiguration.getTPTUsagePercent()) + "%");
-			ChannelManager.getChannel().dump("Transposition Table QSearch usage percent from the free memory " + engineConfiguration.getThreadsCount() 	+ " X : " + (100 * engineConfiguration.getTPTQSUsagePercent()) + "%");
-			ChannelManager.getChannel().dump("Endgame Table Bases Cache usage percent from the free memory " + engineConfiguration.getThreadsCount() 	+ " X : " + (100 * engineConfiguration.getGTBUsagePercent()) + "%");
-			ChannelManager.getChannel().dump("Eval Cache usage percent from the free memory " + engineConfiguration.getThreadsCount() 					+ " X : " + (100 * engineConfiguration.getEvalCacheUsagePercent()) + "%");
-			ChannelManager.getChannel().dump("Pawns Eval Cache usage percent from the free memory " + engineConfiguration.getThreadsCount() 			+ " X : " + (100 * engineConfiguration.getPawnsCacheUsagePercent()) + "%");
+			ChannelManager.getChannel().dump("Transposition Table usage percent from the free memory " + (100 * engineConfiguration.getTPTUsagePercent()) + "%");
+			ChannelManager.getChannel().dump("Eval Cache usage percent from the free memory " + (100 * engineConfiguration.getEvalCacheUsagePercent()) + "%");
+			ChannelManager.getChannel().dump("Pawns Eval Cache usage percent from the free memory " + (100 * engineConfiguration.getPawnsCacheUsagePercent()) + "%");
 			
-			double percents_sum = engineConfiguration.getThreadsCount() * engineConfiguration.getTPTUsagePercent()
-								+ engineConfiguration.getThreadsCount() * engineConfiguration.getTPTQSUsagePercent()
-								+ engineConfiguration.getThreadsCount() * engineConfiguration.getGTBUsagePercent()
-								+ engineConfiguration.getThreadsCount() * engineConfiguration.getEvalCacheUsagePercent()
-								+ engineConfiguration.getThreadsCount() * engineConfiguration.getPawnsCacheUsagePercent();
+			double percents_sum = engineConfiguration.getTPTUsagePercent()
+								+ engineConfiguration.getEvalCacheUsagePercent()
+								+ engineConfiguration.getPawnsCacheUsagePercent();
 			
 			if (percents_sum < 0.95 || percents_sum > 1.05) {
 				throw new IllegalStateException("Percents sum is not near to 1. It is " + percents_sum);
@@ -224,18 +206,14 @@ public class MemoryConsumers {
 		int test_size2 = Math.min(256, availableMemory_in_MB) * 100;
 		
 		
-		int size_tpt = Math.max(SIZE_MIN_ENTRIES_TPT, getTPTEntrySize(availableMemory, 			Math.max(test_size1, SIZE_MIN_ENTRIES_TPT)));
-		ChannelManager.getChannel().dump("Transposition Table size is " + size_tpt);
+		int size_tpt = Math.max(SIZE_MIN_ENTRIES_TPT, getPowerOf2SizeInMegabytes(engineConfiguration.getTPTUsagePercent(), availableMemory_in_MB));
+		ChannelManager.getChannel().dump("Transposition Table size is " + size_tpt + "MB"); 
+				
+		int size_ec = Math.max(SIZE_MIN_ENTRIES_EC, getPowerOf2SizeInMegabytes(engineConfiguration.getEvalCacheUsagePercent(), availableMemory_in_MB));
+		ChannelManager.getChannel().dump("Eval Cache size is " + size_ec + "MB");
 		
-		int size_tpt_qs = Math.max(SIZE_MIN_ENTRIES_TPT, getTPTQSEntrySize(availableMemory, 			Math.max(test_size1, SIZE_MIN_ENTRIES_TPT)));
-		ChannelManager.getChannel().dump("Transposition Table QSearch size is " + size_tpt_qs);
-		
-		int size_ec = Math.max(SIZE_MIN_ENTRIES_EC, getEvalCacheSize(availableMemory,			 	Math.max(test_size1, SIZE_MIN_ENTRIES_EC)));
-		ChannelManager.getChannel().dump("Eval Cache size is " + size_ec);
-		
-		int size_pc = Math.max(SIZE_MIN_ENTRIES_PEC, getPawnsEvalCacheSize(availableMemory, engineConfiguration.getEvalConfig().getPawnsCacheFactoryClassName(),
-																										Math.max(test_size2, SIZE_MIN_ENTRIES_PEC)));
-		ChannelManager.getChannel().dump("Pawns Eval Cache size is " + size_pc);
+		int size_pc = SIZE_MIN_ENTRIES_PEC;
+		ChannelManager.getChannel().dump("Pawns Eval Cache size is " + size_pc + " entries.");
 		
 		/*int size_gtb_out = 0;
 		if (GTBProbing_NativeWrapper.tryToCreateInstance() != null) {
@@ -247,154 +225,36 @@ public class MemoryConsumers {
 		
 		evalCache 		= new Vector<IEvalCache>();
 		pawnsCache		= new Vector<PawnsEvalCache>();
-		tpt 			= new Vector<TPTable>();
-		tpt_qs			= new Vector<TPTable>();
-		gtbCache_out 	= new Vector<GTBCache_OUT>();
+		tpt 			= new Vector<ITTable>();
 		
+		ITTable ttable = new TTable_Impl2(size_tpt);
+		IEvalCache ecache = new EvalCache_Impl2(size_ec);
 		
 		int threadsCount = engineConfiguration.getThreadsCount();
 		for (int i=0; i<threadsCount; i++) {
 			
-			tpt.add(new TPTable(size_tpt, false, new BinarySemaphore_Dummy()));
+			tpt.add(ttable);
 			
-			tpt_qs.add(new TPTable(size_tpt_qs, false, new BinarySemaphore_Dummy()));
-			
-			//evalCache.add(new EvalCache(size_ec, false, new BinarySemaphore_Dummy()));
-			evalCache.add(new EvalCache(5, size_ec, false, new BinarySemaphore_Dummy()));
+			evalCache.add(ecache);
 			
 			DataObjectFactory<PawnsModelEval> pawnsCacheFactory = (DataObjectFactory<PawnsModelEval>) ReflectionUtils.createObjectByClassName_NoArgsConstructor(engineConfiguration.getEvalConfig().getPawnsCacheFactoryClassName());
 			pawnsCache.add(new PawnsEvalCache(pawnsCacheFactory, size_pc, false, new BinarySemaphore_Dummy()));
-		
-			//if (GTBProbing_NativeWrapper.tryToCreateInstance() != null) {
-			//	gtbCache_out.add(new GTBCache_OUT(size_gtb_out, false, new BinarySemaphore_Dummy()));
-			//} else {
-				gtbCache_out.add(null);
-			//}
 		}		
 	}
-	
-	
-	private int getTPTEntrySize(long availableMemory, int test_size) {
-		int availableMemory_in_MB = (int) (availableMemory / (1024 * 1024));
-		if (availableMemory_in_MB < 1) {
-			//throw new IllegalStateException("Not enough memory for initializing Transposition Table. Please increase the -Xmx option of Java VM");
-			availableMemory_in_MB = 1;
-		}
-		
-		System.gc();
-		
-		int memory_before = getUsedMemory();
-		TPTable test_tpt = new TPTable(test_size, true, null);
-		int size = getEntrySize(availableMemory, engineConfiguration.getTPTUsagePercent(), test_size, memory_before);
-		test_tpt.clear();
-		return size;
-	}
-	
-	
-	private int getTPTQSEntrySize(long availableMemory, int test_size) {
-		int availableMemory_in_MB = (int) (availableMemory / (1024 * 1024));
-		if (availableMemory_in_MB < 1) {
-			//throw new IllegalStateException("Not enough memory for initializing Transposition Table. Please increase the -Xmx option of Java VM");
-			availableMemory_in_MB = 1;
-		}
-		
-		System.gc();
-		
-		int memory_before = getUsedMemory();
-		TPTable test_tpt = new TPTable(test_size, true, null);
-		int size = getEntrySize(availableMemory, engineConfiguration.getTPTQSUsagePercent(), test_size, memory_before);
-		test_tpt.clear();
-		return size;
-	}
-	
-	
-	private int getGTBEntrySize_OUT(long availableMemory, int test_size) {
-		int availableMemory_in_MB = (int) (availableMemory / (1024 * 1024));
-		if (availableMemory_in_MB < 1) {
-			//throw new IllegalStateException("Not enough memory for initializing Endgame Table Bases cache (OUT). Please increase the -Xmx option of Java VM");
-			availableMemory_in_MB = 1;
-		}
-		
-		System.gc();
-		
-		int memory_before = getUsedMemory();
-		GTBCache_OUT gtbCache = new GTBCache_OUT(test_size, true, null);
-		int size = getEntrySize(availableMemory, engineConfiguration.getGTBUsagePercent(), test_size, memory_before);
-		gtbCache.clear();
-		return size;
-	}
 
-	private int getEvalCacheSize(long availableMemory, int test_size) {
-		int availableMemory_in_MB = (int) (availableMemory / (1024 * 1024));
-		if (availableMemory_in_MB < 1) {
-			//throw new IllegalStateException("Not enough memory for initializing Eval Cache. Please increase the -Xmx option of Java VM");
-			availableMemory_in_MB = 1;
-		}
-		
-		System.gc();
-		
-		int memory_before = getUsedMemory();
-		//LRUMapLongObject test_ec = new EvalCache(test_size, true, null);
-		LRUMapLongObject test_ec = new EvalCache(5, test_size, true, null);
-		int size = getEntrySize(availableMemory, engineConfiguration.getEvalCacheUsagePercent(), test_size, memory_before);
-		test_ec.clear();
-		return size;
-	}
-	
-	private int getPawnsEvalCacheSize(long availableMemory, String pawnsCacheName, int test_size) {
-		int availableMemory_in_MB = (int) (availableMemory / (1024 * 1024));
-		if (availableMemory_in_MB < 1) {
-			//throw new IllegalStateException("Not enough memory for initializing Pawns Eval Cache. Please increase the -Xmx option of Java VM");
-			availableMemory_in_MB = 1;
-		}
-		
-		System.gc();
-		
-		int memory_before = getUsedMemory();
-		DataObjectFactory<PawnsModelEval> pawnsCacheFactory = (DataObjectFactory<PawnsModelEval>) ReflectionUtils.createObjectByClassName_NoArgsConstructor(pawnsCacheName);
-		PawnsEvalCache test_pc = new PawnsEvalCache(pawnsCacheFactory, test_size, true, null);
-		int size = getEntrySize(availableMemory, engineConfiguration.getPawnsCacheUsagePercent(), test_size, memory_before);
-		test_pc.clear();
+	private int getPowerOf2SizeInMegabytes(double percent, int availableMemory_in_MB) {
+		int size = (int) Math.pow(2, (int)(Math.log(percent * availableMemory_in_MB) / Math.log(2)));
 		return size;
 	}
 	
 	
-	private int getEntrySize(long availableMemory, double usagePercent, int test_size, int memory_before) {
-		int memory_after = getUsedMemory();
-		int size_per_entry = (memory_after - memory_before) / test_size;
-		int size = (int) ((usagePercent * availableMemory) / size_per_entry);
-		return size;
-	}
-	
-	
-	private int getAvailableMemory() {
+	private long getAvailableMemory() {
 		
 		System.gc();
 		//System.gc();
 		//System.gc();
 		
-		int max_mem = (int) Runtime.getRuntime().maxMemory();
-		
-		int total_mem = (int) Runtime.getRuntime().totalMemory();
-		int free_mem = (int) Runtime.getRuntime().freeMemory();
-		int used_mem = total_mem - free_mem;
-		
-		int available_mem = max_mem - used_mem;
-		
-		return available_mem - getStaticMemory();
-	}
-	
-	
-	private static int getUsedMemory() {
-		
-		System.gc();
-		//System.gc();
-		//System.gc();
-		
-		int total_mem = (int) Runtime.getRuntime().totalMemory();
-		int free_mem = (int) Runtime.getRuntime().freeMemory();
-		int used_mem = total_mem - free_mem;
-		return used_mem + getStaticMemory();
+		return Runtime.getRuntime().maxMemory() - getStaticMemory();
 	}
 	
 	
@@ -420,11 +280,6 @@ public class MemoryConsumers {
         }
         return 32;
 	}
-	
-	
-	/*public SeeMetadata getSeeMetadata() {
-		return seeMetadata;
-	}*/
 
 
 	public OpeningBook getOpeningBook() {
@@ -432,13 +287,8 @@ public class MemoryConsumers {
 	}
 
 
-	public List<TPTable> getTPT() {
+	public List<ITTable> getTPT() {
 		return tpt;
-	}
-
-
-	public List<TPTable> getTPTQS() {
-		return tpt_qs;
 	}
 	
 	
@@ -451,23 +301,9 @@ public class MemoryConsumers {
 		return pawnsCache;
 	}
 	
-	
-	public List<SyzygyTBProbing> getTBProbing() {
-		return gtbs;
-	}
-	
-	
-	public List<GTBCache_OUT> getGTBCache_OUT() {
-		return gtbCache_out;
-	}
-	
-	
 	public void clear() {
 		if (tpt != null) tpt.clear();
-		if (tpt_qs != null) tpt_qs.clear();
-		if (pawnsCache != null) pawnsCache.clear();
 		if (evalCache != null) evalCache.clear();
-		if (gtbCache_out != null) gtbCache_out.clear();
-		if (gtbs != null) gtbs.clear();
+		if (pawnsCache != null) pawnsCache.clear();
 	}
 }

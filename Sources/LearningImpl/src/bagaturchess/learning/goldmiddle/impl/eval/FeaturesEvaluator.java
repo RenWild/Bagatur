@@ -16,9 +16,11 @@ import bagaturchess.learning.api.ISignalFiller;
 import bagaturchess.learning.api.ISignals;
 import bagaturchess.learning.impl.features.baseimpl.Features;
 import bagaturchess.learning.impl.signals.Signals;
+import bagaturchess.search.api.FullEvalFlag;
 import bagaturchess.search.api.IEvaluator;
-import bagaturchess.search.impl.evalcache.IEvalCache;
-import bagaturchess.search.impl.evalcache.IEvalEntry;
+import bagaturchess.search.impl.eval.cache.EvalEntry_BaseImpl;
+import bagaturchess.search.impl.eval.cache.IEvalCache;
+import bagaturchess.search.impl.eval.cache.IEvalEntry;
 
 
 public class FeaturesEvaluator implements IEvaluator {
@@ -27,7 +29,6 @@ public class FeaturesEvaluator implements IEvaluator {
 	private boolean useEvalCache = false;
 	
 	private IBitBoard bitboard;
-	private IEvalCache evalCache;
 	private Features features;
 	private IFeature[][] features_byComp;
 	private ISignals signals;
@@ -39,8 +40,10 @@ public class FeaturesEvaluator implements IEvaluator {
 	
 	private int[] eval_buff;
 	
+	private IEvalCache evalCache;
+	private IEvalEntry cached = new EvalEntry_BaseImpl();
 	
-	/*public FeaturesEvaluator(IBitBoard _bitboard, EvalCache _evalCache) {
+	/*public FeaturesEvaluator(IBitBoard _bitboard, EvalCache_Impl1 _evalCache) {
 		this(_bitboard, _evalCache, new SignalFiller(_bitboard), null, null);
 	}*/
 	
@@ -80,13 +83,12 @@ public class FeaturesEvaluator implements IEvaluator {
 		long hashkey = bitboard.getHashKey();
 		
 		if (useEvalCache) {
-			evalCache.lock();
-			IEvalEntry cached = evalCache.get(hashkey);
 			
-			if (cached != null) {
+			evalCache.get(hashkey, cached);
+			
+			if (!cached.isEmpty()) {
 				//if (!cached.isSketch()) {
 					int eval = (int) cached.getEval();
-					evalCache.unlock();
 					if (colour == Figures.COLOUR_WHITE) {
 						return eval;
 					} else {
@@ -96,7 +98,6 @@ public class FeaturesEvaluator implements IEvaluator {
 				//	throw new IllegalStateException("cached.isSketch()");
 				//}
 			}
-			evalCache.unlock();
 		}
 			
 		IFeature[] featuresByComplexity = features_byComp[IFeatureComplexity.STANDARD];
@@ -127,6 +128,12 @@ public class FeaturesEvaluator implements IEvaluator {
 	}
 	
 	
+	@Override
+	public int lazyEval(int depth, int alpha, int beta, int rootColour, FullEvalFlag flag) {
+		throw new UnsupportedOperationException();
+	}
+	
+	
 	/* (non-Javadoc)
 	 * @see bagaturchess.search.api.IEvaluator#lazyEval(int, int, int, int)
 	 */
@@ -141,13 +148,12 @@ public class FeaturesEvaluator implements IEvaluator {
 		long hashkey = bitboard.getHashKey();
 		
 		if (useEvalCache) {
-			evalCache.lock();
-			IEvalEntry cached = evalCache.get(hashkey);
 			
-			if (cached != null) {
+			evalCache.get(hashkey, cached);
+			
+			if (!cached.isEmpty()) {
 				//if (!cached.isSketch()) {
 					int eval = (int) cached.getEval();
-					evalCache.unlock();
 					if (colour == Figures.COLOUR_WHITE) {
 						return eval;
 					} else {
@@ -157,7 +163,6 @@ public class FeaturesEvaluator implements IEvaluator {
 				//	throw new IllegalStateException("cached.isSketch()");
 				//}
 			}
-			evalCache.unlock();
 		}
 		
 		double eval = 0;
@@ -232,9 +237,7 @@ public class FeaturesEvaluator implements IEvaluator {
 		}
 
 		if (useEvalCache && fullEval) {
-			evalCache.lock();
 			evalCache.put(hashkey, 5, (int) eval);
-			evalCache.unlock();
 		}
 		
 		int intEval = (int) eval;
@@ -253,14 +256,13 @@ public class FeaturesEvaluator implements IEvaluator {
 		long hashkey = bitboard.getHashKey();
 		
 		if (useEvalCache) {
-			evalCache.lock();
-			IEvalEntry cached = evalCache.get(hashkey);
 			
-			if (cached != null) {
+			evalCache.get(hashkey, cached);
+			
+			if (!cached.isEmpty()) {
 				//if (!cached.isSketch()) {
 					
 					int eval = (int) cached.getEval();
-					evalCache.unlock();
 					
 					if (colour == Figures.COLOUR_WHITE) {
 						return eval;
@@ -271,7 +273,6 @@ public class FeaturesEvaluator implements IEvaluator {
 				//	throw new IllegalStateException("cached.isSketch()=" + cached.isSketch());
 				//}
 			}
-			evalCache.unlock();
 		}
 		
 		
@@ -301,9 +302,7 @@ public class FeaturesEvaluator implements IEvaluator {
 		}
 		
 		if (useEvalCache) {
-			evalCache.lock();
 			evalCache.put(hashkey, 5, (int) eval);
-			evalCache.unlock();
 		}
 		
 		//int intEval = (int) eval;
